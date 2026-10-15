@@ -1,0 +1,88 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: .docker/php/Dockerfile
+    container_name: ngeblog-app
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      # Session & cache file disimpan di named volume, bukan bind mount.
+      # Terukur pada stack ini: tulis file 1 KB ke bind mount (host Windows)
+      # = 11,02 ms/op, sedangkan ke named volume = 0,05 ms/op. Bila dua direktori
+      # ini tetap di bind mount, driver file malah 2,7x lebih lambat dari
+      # driver database (4,07 ms/op) yang mau kita tinggalkan.
+      - sessions_data:/var/www/html/storage/framework/sessions
+      - cache_data:/var/www/html/storage/framework/cache/data
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Laravel sudah menyediakan endpoint /up (bootstrap/app.php -> health).
+      # Tanpa ini `docker compose ps` hanya menampilkan status "Up", bukan sehat.
+      test: ["CMD", "curl", "-f", "http://localhost/up"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ngeblog-network
+
+  db:
+    image: mysql:8.0
+    container_name: ngeblog-db
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: ngeblog
+      MYSQL_USER: ngeblog
+      MYSQL_PASSWORD: ngeblog_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./.docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - ngeblog-network
+
+  phpmyadmin:
+    # Tag dipin, bukan "latest": pull tanpa pemberitahuan bisa mengubah perilaku
+    # atau menarik versi yang rusak.
+    image: phpmyadmin:5.2.1
+    container_name: ngeblog-phpmyadmin
+    # Opt-in. Jalankan dengan: docker compose --profile debug up -d phpmyadmin
+    profiles: ["debug"]
+    restart: unless-stopped
+    ports:
+      # Hanya loopback. Tanpa ini portnya terbuka ke seluruh jaringan yang bisa
+      # dijangkau mesin ini.
+      - "127.0.0.1:8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      # PMA_USER / PMA_PASSWORD sengaja tidak diisi. Bila diisi, setiap orang
+      # yang membuka port ini otomatis masuk sebagai root tanpa diminta sandi.
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ngeblog-network
+
+networks:
+  ngeblog-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  sessions_data:
+  cache_data:

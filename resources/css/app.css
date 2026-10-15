@@ -1,0 +1,25 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+/*
+ * View pagination sudah diterbitkan ke resources/views/vendor/pagination sehingga
+ * ikut ter-scan otomatis. Sebelumnya baris @source menunjuk langsung ke vendor/,
+ * tetapi path itu tidak pernah menghasilkan kelas apa pun (isolate, z-0, dan
+ * -space-x-px absen dari hasil build), sehingga link pagination tampil tanpa styling.
+ *
+ * Tidak ada baris @source untuk *.js: resources/js sengaja dihapus karena axios
+ * dan seluruh entry JavaScript tidak dipakai halaman mana pun.
+ */
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+    :focus-visible {
+        @apply outline-2 outline-offset-2 outline-gray-900;
+    }
+}
